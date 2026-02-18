@@ -1,0 +1,42 @@
+name: CI – Test and Build
+
+# Trigger: runs whenever a PR is merged into the main branch (jdbc).
+# A merge is a push event on the target branch, so listen on push.
+on:
+  push:
+    branches:
+      - jdbc   # this repo's main branch; change to "main" if that's the default branch name
+
+jobs:
+  test-and-build:
+    name: Test and Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # ./gradlew build compiles, runs all tests, and assembles the shadow JAR.
+      # The micronaut-test-resources plugin automatically starts a MySQL
+      # Testcontainer for the test phase — no manual DB service block needed.
+      - name: Run tests and build shadow JAR
+        run: ./gradlew build
