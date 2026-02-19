@@ -1,4 +1,4 @@
-name: CI – Test and Build
+name: CI/CD – Test, Build, and Deploy
 
 # Trigger: runs whenever a PR is merged into the main branch (jdbc).
 # A merge is a push event on the target branch, so listen on push.
@@ -40,3 +40,67 @@ jobs:
       # Testcontainer for the test phase — no manual DB service block needed.
       - name: Run tests and build shadow JAR
         run: ./gradlew build
+
+      # Upload the JAR so all bonus jobs below can download and use it
+      # without rebuilding.
+      - name: Upload JAR as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: micronaut-crud-jar
+          path: build/libs/*-all.jar
+          retention-days: 30
+
+  #BONUS 1: GitHub Releases
+  # Creates a versioned release in the repo and attaches the JAR as a downloadable asset
+  publish-github-release:
+    name: Publish to GitHub Releases
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: micronaut-crud-jar
+          path: build/libs/
+
+      - name: Create GitHub Release and attach JAR
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Build #${{ github.run_number }}"
+          body: |
+            Automated release from commit `${{ github.sha }}`
+            Branch: `${{ github.ref_name }}`
+          files: build/libs/*.jar
+
+  # BONUS 2: AWS S3
+  # Uploads the JAR to an S3 bucket
+  # useful for deploying to AWS services
+  # Required repository secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET_NAME
+  publish-to-s3:
+    name: Upload to AWS S3
+    needs: test-and-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: micronaut-crud-jar
+          path: build/libs/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload JAR to S3 bucket
+        run: |
+          aws s3 cp build/libs/*.jar \
+            s3://${{ secrets.S3_BUCKET_NAME }}/releases/build-${{ github.run_number }}/
+
