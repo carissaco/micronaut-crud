@@ -22,24 +22,18 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
+      # Downloads Gradle 8.8 directly — no gradle-wrapper.jar needed.
+      # Also handles Gradle dependency caching automatically.
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+          gradle-version: '8.8'
 
-      - name: Make gradlew executable
-        run: chmod +x gradlew
-
-      # ./gradlew build compiles, runs all tests, and assembles the shadow JAR.
+      # gradle build compiles, runs all tests, and assembles the shadow JAR.
       # The micronaut-test-resources plugin automatically starts a MySQL
       # Testcontainer for the test phase — no manual DB service block needed.
       - name: Run tests and build shadow JAR
-        run: ./gradlew build
+        run: gradle build
 
       # Upload the JAR so all bonus jobs below can download and use it
       # without rebuilding.
