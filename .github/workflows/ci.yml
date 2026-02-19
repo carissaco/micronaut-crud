@@ -12,6 +12,20 @@ jobs:
     name: Test and Build
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: mn_playground
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -30,9 +44,13 @@ jobs:
           gradle-version: '8.8'
 
       # gradle build compiles, runs all tests, and assembles the shadow JAR.
-      # The micronaut-test-resources plugin automatically starts a MySQL
-      # Testcontainer for the test phase — no manual DB service block needed.
+      # Env vars override application.yaml so the test connects to the MySQL
+      # service container above instead of the hardcoded dev IP.
       - name: Run tests and build shadow JAR
+        env:
+          DATASOURCES_DEFAULT_URL: jdbc:mysql://127.0.0.1:3306/mn_playground
+          DATASOURCES_DEFAULT_USERNAME: root
+          DATASOURCES_DEFAULT_PASSWORD: password
         run: gradle build
 
       # Upload the JAR so all bonus jobs below can download and use it
